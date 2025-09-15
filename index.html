@@ -95,35 +95,47 @@
 
   // WebSocket signaling wrapper
   function openSignaling() {
-    return new Promise((resolve, reject) => {
-      ws = new WebSocket(wsUrl.value);
-      ws.onopen = () => resolve(ws);
-      ws.onerror = (e) => reject(e);
-     ws.onmessage = async (ev) => {
-  const msg = JSON.parse(ev.data);
-  if (msg.type === 'offer' && role === 'viewer') {
-    await pc.setRemoteDescription(msg.sdp);
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    ws.send(JSON.stringify({ type: 'answer', sessionId: sessionIdEl.value, sdp: answer }));
-  } else if (msg.type === 'answer' && role === 'host') {
-    await pc.setRemoteDescription(msg.sdp);
-  } else if (msg.type === 'ice') {
-    try { await pc.addIceCandidate(msg.candidate); } catch {}
-  } else if (msg.type === 'viewer-joined' && role === 'host') {
-    // 👈 NEW: send a fresh offer when a viewer connects
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(JSON.stringify({
-      type: 'offer',
-      sessionId: sessionIdEl.value,
-      pin: pinEl.value,
-      sdp: offer
-    }));
-  }
-};
+  return new Promise((resolve, reject) => {
+    ws = new WebSocket(wsUrl.value);
 
-  }
+    ws.onopen  = () => resolve(ws);
+    ws.onerror = (e) => reject(e);
+
+    ws.onmessage = async (ev) => {
+      const msg = JSON.parse(ev.data);
+      // console.log('signal:', msg.type); // optional debug
+
+      if (msg.type === 'offer' && role === 'viewer') {
+        await pc.setRemoteDescription(msg.sdp);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({
+          type: 'answer',
+          sessionId: sessionIdEl.value,
+          sdp: answer
+        }));
+
+      } else if (msg.type === 'answer' && role === 'host') {
+        await pc.setRemoteDescription(msg.sdp);
+
+      } else if (msg.type === 'ice') {
+        try { await pc.addIceCandidate(msg.candidate); } catch {}
+
+      } else if (msg.type === 'viewer-joined' && role === 'host') {
+        // NEW: send a fresh offer whenever a viewer connects
+        console.log('Viewer joined → sending new offer…');
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({
+          type: 'offer',
+          sessionId: sessionIdEl.value,
+          pin: pinEl.value,
+          sdp: offer
+        }));
+      }
+    };
+  });
+}
 
   function createPeerConnection() {
     const conf = { iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }] };
@@ -234,5 +246,6 @@
 </script>
 </body>
 </html>
+
 
 
